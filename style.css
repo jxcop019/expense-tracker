@@ -1,33 +1,45 @@
-:root{--paper:#FAFBFC;--ink:#1D2129;--line:#E9ECF0;--mute:#8B93A0;--inc:#2F9E6E;--exp:#E05A5D}
-body{font-family:'Noto Sans Thai',system-ui,sans-serif;font-weight:400;background:var(--paper);color:var(--ink);-webkit-font-smoothing:antialiased}
-.bg-paper{background:var(--paper)}.text-ink{color:var(--ink)}.bg-ink{background:var(--ink)}
+:root{--ink:#2B3562;--mute:#7C86AE;--line:#E3E9FA;--inc:#22A383;--exp:#E2557C;--g:linear-gradient(135deg,#5877DD,#8A77E8)}
+body{font-family:'Noto Sans Thai',system-ui,sans-serif;color:var(--ink);-webkit-font-smoothing:antialiased;
+ background:radial-gradient(700px 360px at 0% -10%,#DEE8FF,transparent 70%),radial-gradient(600px 360px at 100% 0%,#FBE3EF,transparent 70%),#F8F9FF;background-attachment:fixed}
+h1,h2,.font-head{font-family:'Mali','Noto Sans Thai',cursive}
+.bg-paper{background:transparent}.text-ink{color:var(--ink)}.bg-ink{background:var(--g)}
 .border-line{border-color:var(--line)}.text-mute{color:var(--mute)}
 .text-inc{color:var(--inc)}.text-exp{color:var(--exp)}.border-exp{border-color:var(--exp)}
-.bg-inc{background:var(--inc)}.bg-exp{background:var(--exp)}
-.rounded-xl{border-radius:16px}.rounded-lg{border-radius:12px}
-.bg-white{background:#fff}
-button,.tab,.tg{transition:transform .12s ease,background-color .2s,border-color .2s,color .2s}
-button:active{transform:scale(.97)}
-.tg{border:1px solid var(--line);background:#fff;color:var(--mute)}
-.tg.on[data-type=exp]{background:var(--exp);border-color:var(--exp);color:#fff}
-.tg.on[data-type=inc]{background:var(--inc);border-color:var(--inc);color:#fff}
-.tab{border:1px solid var(--line);background:#fff;padding:.6rem .25rem;border-radius:12px;font-size:.9rem;color:var(--mute)}
-.tab.on{background:var(--ink);color:#fff;border-color:var(--ink)}
-.nav-a{padding:.4rem .9rem;border-radius:999px;font-size:.9rem;color:var(--mute);transition:.2s}
-.nav-a:hover{color:var(--ink)}.nav-a.on{background:var(--ink);color:#fff}
+.bg-inc{background:linear-gradient(#6FD6B8,#22A383)}.bg-exp{background:linear-gradient(#F4A9C2,#E2557C)}
+header.bg-white{background:rgba(255,255,255,.78);backdrop-filter:blur(12px)}
+.rounded-xl{border-radius:22px}.rounded-lg{border-radius:16px}
+.bg-white.rounded-xl{box-shadow:0 10px 28px -14px rgba(88,119,221,.45);border-color:#E6ECFC}
+input,select{border-color:var(--line)!important;background:#fff}
+input:focus,select:focus{border-color:#8A77E8!important;box-shadow:0 0 0 4px rgba(138,119,232,.15);outline:none}
+button,.tab,.tg{transition:transform .15s cubic-bezier(.3,1.6,.5,1),box-shadow .2s,background-color .2s,color .2s}
+button:active{transform:scale(.95)}
+button.bg-ink:hover{box-shadow:0 8px 18px -8px rgba(88,119,221,.8)}
+.tg{border:1.5px solid var(--line);background:#fff;color:var(--mute)}
+.tg.on[data-type=exp]{background:linear-gradient(135deg,#F4A9C2,#E2557C);border-color:transparent;color:#fff}
+.tg.on[data-type=inc]{background:linear-gradient(135deg,#6FD6B8,#22A383);border-color:transparent;color:#fff}
+.tab{border:1.5px solid var(--line);background:#fff;padding:.6rem .25rem;border-radius:16px;font-size:.9rem;color:var(--mute)}
+.tab.on{background:var(--g);color:#fff;border-color:transparent}
+.nav-a{padding:.4rem .95rem;border-radius:999px;font-size:.9rem;color:var(--mute);transition:.2s}
+.nav-a:hover{color:var(--ink);background:#EEF2FF}.nav-a.on{background:var(--g);color:#fff}
+#navBottom{background:rgba(255,255,255,.9);backdrop-filter:blur(12px)}
 #navBottom a{flex:1;text-align:center;padding:.8rem 0;font-size:.75rem;color:var(--mute);transition:.2s}
-#navBottom a.on{color:var(--ink);font-weight:600;box-shadow:inset 0 2px 0 var(--ink)}
-.bar{height:6px;border-radius:3px;background:var(--exp);animation:grow .7s cubic-bezier(.2,.8,.2,1)}
+#navBottom a.on{color:#5877DD;font-weight:600;box-shadow:inset 0 3px 0 #8A77E8}
+.bar{height:8px;border-radius:4px;background:linear-gradient(90deg,#F4A9C2,#E2557C);animation:grow .8s cubic-bezier(.2,.8,.2,1)}
 @keyframes grow{from{width:0}}
 .row:not(:last-child){border-bottom:1px solid var(--line)}
-.enter{animation:enter .3s ease-out}
-@keyframes enter{from{opacity:0;transform:translateY(6px)}}
-.row.new{animation:flash 1.2s ease-out}
-@keyframes flash{from{background:#EAF6F0;transform:translateX(-8px);opacity:0}30%{opacity:1;transform:none}}
-.dots span{display:inline-block;width:6px;height:6px;margin:0 2px;border-radius:50%;background:var(--mute);animation:blink 1s infinite}
+.enter{animation:enter .35s ease-out}
+@keyframes enter{from{opacity:0;transform:translateY(8px)}}
+.row.new{animation:flash 1.3s ease-out}
+@keyframes flash{from{background:#E6EEFF;transform:scale(.97);opacity:0}30%{opacity:1;transform:none}}
+.hero{position:relative;text-align:center;padding:.5rem 0 0}
+.hero img{height:190px;margin:auto;animation:float 5s ease-in-out infinite;mix-blend-mode:multiply}
+@keyframes float{50%{transform:translateY(-7px)}}
+.hero::before,.hero::after{content:'✦';position:absolute;color:#B9B2F0;font-size:1.2rem;animation:tw 3s ease-in-out infinite}
+.hero::before{left:12%;top:30%}.hero::after{right:12%;top:15%;color:#F4A9C2;animation-delay:1.2s}
+@keyframes tw{50%{opacity:.25;transform:scale(.7) rotate(25deg)}}
+.codebox{font-family:ui-monospace,monospace;letter-spacing:.06em;background:#F2F5FF;border-radius:14px;padding:.8rem 1rem;word-break:break-all;text-align:center;font-weight:600}
+.dots span{display:inline-block;width:7px;height:7px;margin:0 2px;border-radius:50%;background:#8A77E8;animation:blink 1s infinite}
 .dots span:nth-child(2){animation-delay:.15s}.dots span:nth-child(3){animation-delay:.3s}
-@keyframes blink{50%{opacity:.2;transform:translateY(-3px)}}
-button:focus-visible,input:focus-visible,select:focus-visible,a:focus-visible{outline:2px solid var(--ink);outline-offset:2px}
-input,select{transition:border-color .2s,box-shadow .2s}
-input:focus,select:focus{border-color:var(--ink)}
-@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+@keyframes blink{50%{opacity:.25;transform:translateY(-4px)}}
+button:focus-visible,a:focus-visible{outline:2px solid #8A77E8;outline-offset:2px}
+@media (prefers-reduced-motion:reduce){*,*::before,*::after{animation:none!important;transition:none!important}}

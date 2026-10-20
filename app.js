@@ -1,5 +1,5 @@
 // หลัง deploy Worker แล้ว ใส่ URL ของ Worker ตรงนี้ เช่น "https://expense-ai.ชื่อคุณ.workers.dev"
-const AI_URL = "https://expense-ai.phuriphat-zxc84.workers.dev";
+const AI_URL = "";
 const $ = s => document.querySelector(s), $$ = s => [...document.querySelectorAll(s)];
 const CATS = {
   exp: ['อาหาร', 'เดินทาง', 'ของใช้', 'บิล/ค่าบริการ', 'บันเทิง', 'สุขภาพ', 'อื่นๆ'],
@@ -24,9 +24,10 @@ const GOALS = {
 const VIEWS = [['home', 'หน้าหลัก'], ['transactions', 'รายการ'], ['summary', 'สรุป'], ['planner', 'วางแผน'], ['settings', 'ตั้งค่า']];
 
 const load = (k, d) => { try { return JSON.parse(localStorage.getItem(k)) ?? d } catch { return d } };
-let tx = load('tx', []), plan = load('plan', { goal: 'bal', income: '', fixed: '' });
+let tx = load('tx', []), plan = load('plan', { goal: 'bal', income: '', fixed: '' }), sync = load('sync', { code: '', del: {} });
 let type = 'exp', editId = null, lastId = null, catTouched = false, period = 'month';
-const save = () => { localStorage.setItem('tx', JSON.stringify(tx)); localStorage.setItem('plan', JSON.stringify(plan)); };
+const persist = () => { localStorage.setItem('tx', JSON.stringify(tx)); localStorage.setItem('plan', JSON.stringify(plan)); localStorage.setItem('sync', JSON.stringify(sync)); };
+const save = () => { persist(); queueSync(); };
 const iso = d => new Date(d - d.getTimezoneOffset() * 6e4).toISOString().slice(0, 10);
 const today = () => iso(new Date());
 const fmt = n => Number(n).toLocaleString('th-TH', { maximumFractionDigits: 2 });
@@ -78,7 +79,7 @@ $('#form').addEventListener('submit', e => {
   e.preventDefault();
   const p = parse($('#text').value);
   if (!p.amount) { $('#preview').innerHTML = '<span class="text-exp">ใส่จำนวนเงินด้วย เช่น ก๋วยเตี๋ยว 50</span>'; return; }
-  const rec = { id: editId || Date.now(), name: p.name, amount: p.amount, type, cat: $('#cat').value, date: $('#date').value || today() };
+  const rec = { id: editId || Date.now(), name: p.name, amount: p.amount, type, cat: $('#cat').value, date: $('#date').value || today(), u: Date.now() };
   tx = editId ? tx.map(x => x.id === editId ? rec : x) : [...tx, rec];
   lastId = rec.id; save(); resetForm(); renderAll(); lastId = null;
 });
@@ -96,7 +97,7 @@ window.edit = id => {
   $('#saveBtn').textContent = 'อัปเดตข้อมูล'; $('#cancelEdit').classList.remove('hidden');
   location.hash = 'home'; window.scrollTo({ top: 0, behavior: 'smooth' }); $('#text').focus();
 };
-window.del = id => { if (confirm('ลบรายการนี้?')) { tx = tx.filter(x => x.id !== id); save(); renderAll(); } };
+window.del = id => { if (confirm('ลบรายการนี้?')) { tx = tx.filter(x => x.id !== id); sync.del[id] = Date.now(); save(); renderAll(); } };
 
 /* ---------- Render ---------- */
 const rowHTML = x => `<div class="row ${x.id === lastId ? 'new' : ''} px-4 py-3 flex items-center gap-3">
@@ -148,7 +149,7 @@ function renderSummary() {
 /* ---------- Planner (rule-based advisor) ---------- */
 function renderPlan() {
   $('#goalTabs').innerHTML = Object.entries(GOALS).map(([k, g]) => `<button class="tab ${k === plan.goal ? 'on' : ''}" data-g="${k}">${g.label}</button>`).join('');
-  $$('#goalTabs .tab').forEach(b => b.onclick = () => { plan.goal = b.dataset.g; save(); renderPlan(); });
+  $$('#goalTabs .tab').forEach(b => b.onclick = () => { plan.goal = b.dataset.g; plan.u = Date.now(); save(); renderPlan(); });
   const g = GOALS[plan.goal], now = new Date(), y = now.getFullYear(), mo = now.getMonth();
   const dim = new Date(y, mo + 1, 0).getDate(), left = dim - now.getDate() + 1;
   const m = thisMonth(), income = +plan.income || sum(m, 'inc'), fixed = +plan.fixed || 0;
@@ -181,8 +182,8 @@ function renderPlan() {
     <div class="text-xs text-mute mt-1">${share.slice(0, 4).map(([c, s]) => `${c} ${fmt(b * s)}`).join(' · ')}</div></div>`;
   }).join('')}</div></div>`;
 }
-$('#pIncome').oninput = e => { plan.income = e.target.value; save(); renderPlan(); };
-$('#pFixed').oninput = e => { plan.fixed = e.target.value; save(); renderPlan(); };
+$('#pIncome').oninput = e => { plan.income = e.target.value; plan.u = Date.now(); save(); renderPlan(); };
+$('#pFixed').oninput = e => { plan.fixed = e.target.value; plan.u = Date.now(); save(); renderPlan(); };
 
 /* ---------- Settings ---------- */
 $('#exportBtn').onclick = () => {
@@ -190,7 +191,7 @@ $('#exportBtn').onclick = () => {
   a.href = URL.createObjectURL(new Blob([JSON.stringify(tx, null, 2)], { type: 'application/json' }));
   a.download = `expense-${today()}.json`; a.click();
 };
-$('#clearBtn').onclick = () => { if (confirm('ลบข้อมูลทั้งหมดถาวร?')) { tx = []; save(); renderAll(); } };
+$('#clearBtn').onclick = () => { if (confirm('ลบข้อมูลทั้งหมดถาวร?')) { tx.forEach(x => sync.del[x.id] = Date.now()); tx = []; save(); renderAll(); } };
 
 /* ---------- Routing ---------- */
 function route() {
@@ -230,3 +231,54 @@ $('#aiBtn').onclick = async () => {
   } catch { out.textContent = 'เชื่อมต่อ AI ไม่ได้ ตรวจสอบ AI_URL และอินเทอร์เน็ต'; }
   btn.disabled = false;
 };
+
+/* ---------- ซิงค์ข้ามอุปกรณ์ (ผ่าน Worker + KV) ---------- */
+const BASE = AI_URL.replace(/\/+$/, '');
+let syncTimer = null, syncing = false;
+const setState = t => $('#syncState').textContent = t;
+const post = (path, body) => fetch(BASE + path, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+function queueSync() { clearTimeout(syncTimer); if (sync.code) syncTimer = setTimeout(doSync, 1500); }
+function merge(r) {
+  const del = { ...(r.del || {}) };
+  for (const k in sync.del) del[k] = Math.max(del[k] || 0, sync.del[k]);
+  const m = new Map();
+  [...(r.tx || []), ...tx].forEach(x => { const o = m.get(x.id); if (!o || (x.u || 0) >= (o.u || 0)) m.set(x.id, x); });
+  tx = [...m.values()].filter(x => !(del[x.id] > (x.u || 0)));
+  sync.del = del;
+  if (r.plan && (r.plan.u || 0) > (plan.u || 0)) plan = r.plan;
+}
+async function doSync() {
+  if (!sync.code || !AI_URL || syncing) return;
+  syncing = true; setState('☁ กำลังซิงค์...');
+  try {
+    const g = await post('/sync/get', { code: sync.code });
+    const r = await g.json(); if (!g.ok) throw new Error(r.error);
+    merge(r.data || {});
+    const p = await post('/sync/put', { code: sync.code, data: { tx, del: sync.del, plan } });
+    if (!p.ok) throw new Error('put');
+    persist(); renderAll();
+    $('#pIncome').value = plan.income || ''; $('#pFixed').value = plan.fixed || '';
+    setState('☁ ซิงค์แล้ว');
+  } catch (e) { setState('☁ ซิงค์ไม่สำเร็จ'); }
+  syncing = false;
+}
+function renderSync() {
+  $('#syncNew').classList.toggle('hidden', !!sync.code);
+  $('#syncActive').classList.toggle('hidden', !sync.code);
+  $('#codeBox').textContent = sync.code;
+}
+function startSync(c) { sync.code = c; persist(); renderSync(); doSync(); }
+$('#genCode').onclick = () => {
+  const a = crypto.getRandomValues(new Uint8Array(16)), abc = 'abcdefghjkmnpqrstuvwxyz23456789';
+  startSync([...a].map(b => abc[b % abc.length]).join('').match(/.{4}/g).join('-'));
+};
+$('#joinBtn').onclick = () => {
+  const c = $('#joinCode').value.trim().toLowerCase();
+  if (c.replace(/-/g, '').length < 16) { alert('รหัสไม่ถูกต้อง ลองคัดลอกจากเครื่องแรกอีกครั้ง'); return; }
+  startSync(c);
+};
+$('#copyCode').onclick = () => navigator.clipboard.writeText(sync.code).then(() => { $('#copyCode').textContent = 'คัดลอกแล้ว ✓'; setTimeout(() => $('#copyCode').textContent = 'คัดลอกรหัส', 1500); });
+$('#syncNow').onclick = doSync;
+$('#leaveBtn').onclick = () => { if (confirm('ยกเลิกการซิงค์บนเครื่องนี้? ข้อมูลในเครื่องยังอยู่')) { sync.code = ''; persist(); renderSync(); setState(''); } };
+document.addEventListener('visibilitychange', () => { if (!document.hidden) doSync(); });
+renderSync(); doSync();

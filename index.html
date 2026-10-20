@@ -3,9 +3,10 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>สมุดบัญชีอัจฉริยะ</title>
+<title>รายรับ รายจ่าย</title>
+<link rel="icon" href="icon.png">
 <script src="https://cdn.tailwindcss.com"></script>
-<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+Thai:wght@400;500;600&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Mali:wght@500;600;700&family=Noto+Sans+Thai:wght@400;500;600&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="style.css">
 </head>
 <body class="bg-paper text-ink min-h-screen pb-20 md:pb-8">
@@ -13,10 +14,10 @@
 <header class="bg-white border-b border-line sticky top-0 z-20">
   <div class="max-w-4xl mx-auto px-4 h-14 flex items-center justify-between">
     <a href="#home" class="flex items-center gap-2 font-bold">
-      <span class="w-8 h-8 rounded-lg bg-ink text-white grid place-items-center">฿</span>
-      <span>สมุดบัญชีอัจฉริยะ</span>
+      <img src="icon.png" alt="" class="w-9 h-9"><span class="font-head font-bold text-lg">รายรับ รายจ่าย</span>
     </a>
     <nav class="hidden md:flex gap-1" id="navTop"></nav>
+    <span id="syncState" class="text-xs text-mute"></span>
   </div>
 </header>
 <nav class="md:hidden fixed bottom-0 inset-x-0 bg-white border-t border-line z-20 flex" id="navBottom"></nav>
@@ -25,6 +26,7 @@
 
 <!-- HOME -->
 <section data-view="home" class="space-y-5">
+  <div class="hero"><img src="logo.webp" alt="รายรับ รายจ่าย"></div>
   <div class="grid grid-cols-3 gap-2 sm:gap-3" id="cards"></div>
 
   <form id="form" class="bg-white border border-line rounded-xl p-4 space-y-3">
@@ -98,6 +100,21 @@
 <!-- SETTINGS -->
 <section data-view="settings" class="hidden space-y-4">
   <h1 class="text-xl font-bold">ตั้งค่า</h1>
+  <div class="bg-white border border-line rounded-xl p-4 space-y-3">
+    <h2 class="font-semibold">ซิงค์ข้ามอุปกรณ์</h2>
+    <p class="text-sm text-mute">ใช้รหัสเดียวกันบนทุกเครื่อง ข้อมูลจะตรงกันอัตโนมัติ เก็บรหัสไว้ให้ดี เพราะใครมีรหัสก็เปิดดูข้อมูลของคุณได้</p>
+    <div id="syncNew" class="space-y-2">
+      <button id="genCode" class="w-full py-3 rounded-lg bg-ink text-white font-medium">สร้างรหัสซิงค์ใหม่ (เครื่องแรก)</button>
+      <div class="flex gap-2"><input id="joinCode" placeholder="มีรหัสแล้ว? วางที่นี่" class="flex-1 min-w-0 px-3 py-2.5 border rounded-lg">
+      <button id="joinBtn" class="px-4 rounded-lg border border-line font-medium">เชื่อมต่อ</button></div>
+    </div>
+    <div id="syncActive" class="hidden space-y-2">
+      <div class="codebox" id="codeBox"></div>
+      <div class="grid grid-cols-2 gap-2"><button id="copyCode" class="py-2.5 rounded-lg border border-line">คัดลอกรหัส</button>
+      <button id="syncNow" class="py-2.5 rounded-lg bg-ink text-white">ซิงค์ตอนนี้</button></div>
+      <button id="leaveBtn" class="w-full py-2 text-sm text-mute">ยกเลิกการซิงค์บนเครื่องนี้</button>
+    </div>
+  </div>
   <div class="bg-white border border-line rounded-xl p-4 space-y-3">
     <p class="text-sm text-mute">ข้อมูลทั้งหมดเก็บในเบราว์เซอร์เครื่องนี้เท่านั้น</p>
     <button id="exportBtn" class="w-full py-2.5 rounded-lg border border-line font-medium">ดาวน์โหลดข้อมูล (JSON)</button>
