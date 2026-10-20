@@ -1,5 +1,5 @@
 // หลัง deploy Worker แล้ว ใส่ URL ของ Worker ตรงนี้ เช่น "https://expense-ai.ชื่อคุณ.workers.dev"
-const AI_URL = "https://expense-ai.phuriphat-zxc84.workers.dev/";
+const AI_URL = "https://expense-ai.phuriphat-zxc84.workers.dev";
 const $ = s => document.querySelector(s), $$ = s => [...document.querySelectorAll(s)];
 const CATS = {
   exp: ['อาหาร', 'เดินทาง', 'ของใช้', 'บิล/ค่าบริการ', 'บันเทิง', 'สุขภาพ', 'อื่นๆ'],
