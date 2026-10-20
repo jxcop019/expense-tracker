@@ -1,0 +1,33 @@
+:root{--paper:#FAFBFC;--ink:#1D2129;--line:#E9ECF0;--mute:#8B93A0;--inc:#2F9E6E;--exp:#E05A5D}
+body{font-family:'Noto Sans Thai',system-ui,sans-serif;font-weight:400;background:var(--paper);color:var(--ink);-webkit-font-smoothing:antialiased}
+.bg-paper{background:var(--paper)}.text-ink{color:var(--ink)}.bg-ink{background:var(--ink)}
+.border-line{border-color:var(--line)}.text-mute{color:var(--mute)}
+.text-inc{color:var(--inc)}.text-exp{color:var(--exp)}.border-exp{border-color:var(--exp)}
+.bg-inc{background:var(--inc)}.bg-exp{background:var(--exp)}
+.rounded-xl{border-radius:16px}.rounded-lg{border-radius:12px}
+.bg-white{background:#fff}
+button,.tab,.tg{transition:transform .12s ease,background-color .2s,border-color .2s,color .2s}
+button:active{transform:scale(.97)}
+.tg{border:1px solid var(--line);background:#fff;color:var(--mute)}
+.tg.on[data-type=exp]{background:var(--exp);border-color:var(--exp);color:#fff}
+.tg.on[data-type=inc]{background:var(--inc);border-color:var(--inc);color:#fff}
+.tab{border:1px solid var(--line);background:#fff;padding:.6rem .25rem;border-radius:12px;font-size:.9rem;color:var(--mute)}
+.tab.on{background:var(--ink);color:#fff;border-color:var(--ink)}
+.nav-a{padding:.4rem .9rem;border-radius:999px;font-size:.9rem;color:var(--mute);transition:.2s}
+.nav-a:hover{color:var(--ink)}.nav-a.on{background:var(--ink);color:#fff}
+#navBottom a{flex:1;text-align:center;padding:.8rem 0;font-size:.75rem;color:var(--mute);transition:.2s}
+#navBottom a.on{color:var(--ink);font-weight:600;box-shadow:inset 0 2px 0 var(--ink)}
+.bar{height:6px;border-radius:3px;background:var(--exp);animation:grow .7s cubic-bezier(.2,.8,.2,1)}
+@keyframes grow{from{width:0}}
+.row:not(:last-child){border-bottom:1px solid var(--line)}
+.enter{animation:enter .3s ease-out}
+@keyframes enter{from{opacity:0;transform:translateY(6px)}}
+.row.new{animation:flash 1.2s ease-out}
+@keyframes flash{from{background:#EAF6F0;transform:translateX(-8px);opacity:0}30%{opacity:1;transform:none}}
+.dots span{display:inline-block;width:6px;height:6px;margin:0 2px;border-radius:50%;background:var(--mute);animation:blink 1s infinite}
+.dots span:nth-child(2){animation-delay:.15s}.dots span:nth-child(3){animation-delay:.3s}
+@keyframes blink{50%{opacity:.2;transform:translateY(-3px)}}
+button:focus-visible,input:focus-visible,select:focus-visible,a:focus-visible{outline:2px solid var(--ink);outline-offset:2px}
+input,select{transition:border-color .2s,box-shadow .2s}
+input:focus,select:focus{border-color:var(--ink)}
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}

@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>สมุดบัญชีอัจฉริยะ</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+Thai:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+</head>
+<body class="bg-paper text-ink min-h-screen pb-20 md:pb-8">
+
+<header class="bg-white border-b border-line sticky top-0 z-20">
+  <div class="max-w-4xl mx-auto px-4 h-14 flex items-center justify-between">
+    <a href="#home" class="flex items-center gap-2 font-bold">
+      <span class="w-8 h-8 rounded-lg bg-ink text-white grid place-items-center">฿</span>
+      <span>สมุดบัญชีอัจฉริยะ</span>
+    </a>
+    <nav class="hidden md:flex gap-1" id="navTop"></nav>
+  </div>
+</header>
+<nav class="md:hidden fixed bottom-0 inset-x-0 bg-white border-t border-line z-20 flex" id="navBottom"></nav>
+
+<main class="max-w-4xl mx-auto px-4 py-5">
+
+<!-- HOME -->
+<section data-view="home" class="space-y-5">
+  <div class="grid grid-cols-3 gap-2 sm:gap-3" id="cards"></div>
+
+  <form id="form" class="bg-white border border-line rounded-xl p-4 space-y-3">
+    <input id="text" autocomplete="off" placeholder="พิมพ์เช่น  ค่าอาหารกลางวัน 120" class="w-full text-lg px-4 py-3 border border-line rounded-lg focus:outline-none focus:ring-2 focus:ring-ink">
+    <p id="preview" class="text-sm text-mute min-h-[1.25rem]"></p>
+    <div class="grid grid-cols-2 gap-2" id="toggle">
+      <button type="button" data-type="exp" class="tg py-2.5 rounded-lg font-medium">รายจ่าย</button>
+      <button type="button" data-type="inc" class="tg py-2.5 rounded-lg font-medium">รายรับ</button>
+    </div>
+    <div class="grid grid-cols-2 gap-2">
+      <select id="cat" class="px-3 py-2.5 border border-line rounded-lg bg-white"></select>
+      <input id="date" type="date" class="px-3 py-2.5 border border-line rounded-lg">
+    </div>
+    <div class="flex gap-2">
+      <button class="flex-1 py-3 rounded-lg bg-ink text-white font-medium" id="saveBtn">บันทึกข้อมูล</button>
+      <button type="button" id="cancelEdit" class="hidden px-4 rounded-lg border border-line">ยกเลิก</button>
+    </div>
+  </form>
+
+  <div class="bg-white border border-line rounded-xl">
+    <div class="px-4 py-3 border-b border-line flex justify-between items-center">
+      <h2 class="font-bold">รายการล่าสุด</h2>
+      <a href="#transactions" class="text-sm text-mute underline">ดูทั้งหมด</a>
+    </div>
+    <div id="recent"></div>
+  </div>
+</section>
+
+<!-- TRANSACTIONS -->
+<section data-view="transactions" class="hidden space-y-4">
+  <h1 class="text-xl font-bold">รายการทั้งหมด</h1>
+  <div class="flex flex-col sm:flex-row gap-2">
+    <input id="q" placeholder="ค้นหารายการ..." class="flex-1 px-3 py-2.5 border border-line rounded-lg bg-white">
+    <select id="ftype" class="px-3 py-2.5 border border-line rounded-lg bg-white">
+      <option value="all">ทั้งหมด</option><option value="exp">เฉพาะรายจ่าย</option><option value="inc">เฉพาะรายรับ</option>
+    </select>
+  </div>
+  <div id="txList" class="space-y-4"></div>
+</section>
+
+<!-- SUMMARY -->
+<section data-view="summary" class="hidden space-y-4">
+  <h1 class="text-xl font-bold">สรุปการใช้เงิน</h1>
+  <div class="grid grid-cols-3 gap-2" id="periodTabs"></div>
+  <div id="sumBody" class="space-y-4"></div>
+</section>
+
+<!-- PLANNER -->
+<section data-view="planner" class="hidden space-y-4">
+  <h1 class="text-xl font-bold">วางแผนการใช้เงิน</h1>
+  <div class="bg-white border border-line rounded-xl p-4 space-y-3">
+    <p class="text-sm text-mute">เลือกเป้าหมาย แล้วระบบจะแบ่งงบที่ใช้ได้ในแต่ละวันจนสิ้นเดือน จากข้อมูลรายจ่ายจริงของคุณ</p>
+    <div class="grid grid-cols-3 gap-2" id="goalTabs"></div>
+    <div class="grid grid-cols-2 gap-2">
+      <label class="text-sm">รายได้ต่อเดือน (บาท)
+        <input id="pIncome" type="number" min="0" placeholder="ใช้รายรับเดือนนี้" class="mt-1 w-full px-3 py-2.5 border border-line rounded-lg"></label>
+      <label class="text-sm">ค่าใช้จ่ายคงที่ เช่น ค่าเช่า (บาท)
+        <input id="pFixed" type="number" min="0" placeholder="0" class="mt-1 w-full px-3 py-2.5 border border-line rounded-lg"></label>
+    </div>
+  </div>
+  <div id="planBody" class="space-y-4"></div>
+  <div class="bg-white border border-line rounded-xl p-4 space-y-3">
+    <div class="flex items-center justify-between gap-3">
+      <div><h2 class="font-semibold">ที่ปรึกษา AI</h2><p class="text-xs text-mute">ส่งสรุปรายรับ-รายจ่ายของคุณให้ AI วิเคราะห์และแนะนำ</p></div>
+      <button id="aiBtn" class="px-4 py-2.5 rounded-lg bg-ink text-white text-sm whitespace-nowrap">ขอคำแนะนำ</button>
+    </div>
+    <div id="aiOut" class="text-sm leading-relaxed whitespace-pre-line"></div>
+  </div>
+</section>
+
+<!-- SETTINGS -->
+<section data-view="settings" class="hidden space-y-4">
+  <h1 class="text-xl font-bold">ตั้งค่า</h1>
+  <div class="bg-white border border-line rounded-xl p-4 space-y-3">
+    <p class="text-sm text-mute">ข้อมูลทั้งหมดเก็บในเบราว์เซอร์เครื่องนี้เท่านั้น</p>
+    <button id="exportBtn" class="w-full py-2.5 rounded-lg border border-line font-medium">ดาวน์โหลดข้อมูล (JSON)</button>
+    <button id="clearBtn" class="w-full py-2.5 rounded-lg border border-exp text-exp font-medium">ลบข้อมูลทั้งหมด</button>
+  </div>
+</section>
+
+</main>
+<script src="app.js"></script>
+</body>
+</html>
