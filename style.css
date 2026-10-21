@@ -57,3 +57,8 @@ button:focus-visible,a:focus-visible{outline:2px solid #8A77E8;outline-offset:2p
 .cf{position:fixed;top:-14px;width:8px;height:12px;border-radius:2px;z-index:60;pointer-events:none;animation:fall 1.9s ease-in forwards}
 @keyframes fall{to{transform:translate(var(--x),105vh) rotate(600deg);opacity:.2}}
 @keyframes flash{0%{opacity:0;transform:translateY(-10px) scale(.94)}55%{opacity:1;transform:translateY(0) scale(1.02);background:#E6EEFF}100%{transform:none}}
+#navBottom a{font-size:.7rem;min-width:0;white-space:nowrap;padding-left:0;padding-right:0}
+.goal-bar i{background:linear-gradient(90deg,#8FADEB,#B9B2F0,#F4A9C2)}
+.goal-done{border-color:#BFE9DC!important;background:linear-gradient(135deg,#fff,#EFFBF6)!important}
+.badge-done{display:inline-block;margin-top:.5rem;padding:.3rem .85rem;border-radius:999px;background:linear-gradient(135deg,#6FD6B8,#22A383);color:#fff;font-size:.85rem;font-weight:500;animation:pop .5s cubic-bezier(.3,1.6,.5,1)}
+@keyframes pop{from{transform:scale(.6);opacity:0}}

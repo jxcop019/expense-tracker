@@ -22,11 +22,12 @@ const GOALS = {
   worth: { label: 'ใช้ให้คุ้ม', rate: .1, wk: [1, 1, 1, 1, 1.2, 1.4, 1.2] },
   bal: { label: 'สมดุล', rate: .2, wk: [1, 1, 1, 1, 1, 1, 1] }
 };
-const VIEWS = [['home', 'หน้าหลัก'], ['transactions', 'รายการ'], ['summary', 'สรุป'], ['planner', 'วางแผน'], ['accounts', 'บัญชี'], ['settings', 'ตั้งค่า']];
+const VIEWS = [['home', 'หน้าหลัก'], ['transactions', 'รายการ'], ['summary', 'สรุป'], ['planner', 'วางแผน'], ['accounts', 'บัญชี'], ['goals', 'เป้าหมาย'], ['settings', 'ตั้งค่า']];
 
 const load = (k, d) => { try { return JSON.parse(localStorage.getItem(k)) ?? d } catch { return d } };
 let tx = load('tx', []), plan = load('plan', { goal: 'bal', income: '', fixed: '' }), sync = load('sync', { code: '', del: {} }),
-  cfg = load('cfg', null) || { cats: JSON.parse(JSON.stringify(DEF_CATS)), accs: [{ id: 'cash', name: 'เงินสด', open: 0 }], budgets: {}, u: 0 };
+  cfg = load('cfg', null) || { cats: JSON.parse(JSON.stringify(DEF_CATS)), accs: [{ id: 'cash', name: 'เงินสด', open: 0 }], budgets: {}, goals: [], u: 0 };
+cfg.goals = cfg.goals || []; cfg.budgets = cfg.budgets || {};
 let type = 'exp', editId = null, lastId = null, catTouched = false, period = 'month';
 const persist = () => { localStorage.setItem('tx', JSON.stringify(tx)); localStorage.setItem('plan', JSON.stringify(plan)); localStorage.setItem('sync', JSON.stringify(sync)); localStorage.setItem('cfg', JSON.stringify(cfg)); };
 const save = () => { persist(); queueSync(); };
@@ -120,7 +121,7 @@ const card = (l, v, c) => `<div class="bg-white border border-line rounded-xl p-
 
 function renderHome() {
   const m = thisMonth(), i = sum(m, 'inc'), e = sum(m, 'exp');
-  $('#cards').innerHTML = card('รายรับเดือนนี้', i, 'text-inc') + card('รายจ่ายเดือนนี้', e, 'text-exp') + card('คงเหลือ', i - e, i - e < 0 ? 'text-exp' : '');
+  $('#cards').innerHTML = card('รายรับเดือนนี้', i, 'text-inc') + card('รายจ่ายเดือนนี้', e, 'text-exp') + card('คงเหลือเดือนนี้', i - e, i - e < 0 ? 'text-exp' : '');
   $('#recent').innerHTML = tx.length ? sorted(tx).slice(0, 5).map(rowHTML).join('') : '<p class="p-6 text-center text-mute">ยังไม่มีรายการ ลองพิมพ์ “กาแฟ 60” ด้านบน</p>';
 }
 function renderTx() {
@@ -197,7 +198,7 @@ $('#pFixed').oninput = e => { plan.fixed = e.target.value; plan.u = Date.now(); 
 /* ---------- Settings ---------- */
 $('#exportBtn').onclick = () => {
   const a = document.createElement('a');
-  a.href = URL.createObjectURL(new Blob([JSON.stringify(tx, null, 2)], { type: 'application/json' }));
+  a.href = URL.createObjectURL(new Blob([JSON.stringify({ app: 'expense-tracker', v: 2, exportedAt: new Date().toISOString(), tx, del: sync.del, plan, cfg }, null, 2)], { type: 'application/json' }));
   a.download = `expense-${today()}.json`; a.click();
 };
 $('#clearBtn').onclick = () => { if (confirm('ลบข้อมูลทั้งหมดถาวร?')) { tx.forEach(x => sync.del[x.id] = Date.now()); tx = []; save(); renderAll(); } };
@@ -272,6 +273,7 @@ window.accAdjust = id => {
 };
 window.accDel = id => {
   if (cfg.accs.length < 2) { toast('ต้องเหลืออย่างน้อย 1 บัญชี'); return; }
+  if (cfg.goals.some(g => g.acc === id)) { toast('บัญชีนี้ผูกกับเป้าหมายอยู่ ลบหรือเปลี่ยนเป้าหมายก่อน'); return; }
   if (confirm('ลบบัญชีนี้? รายการเดิมยังอยู่ แต่จะไม่ถูกนับในยอดบัญชี')) { cfg.accs = cfg.accs.filter(x => x.id !== id); touchCfg(); renderAll(); }
 };
 $('#accAdd').onclick = () => {
@@ -289,18 +291,39 @@ $('#tfGo').onclick = () => {
 };
 
 function renderBudget() {
+  $('#catList').innerHTML = cfg.cats.exp.map(c => `<option value="${esc(c)}">`).join('');
   const spent = {}; thisMonth().filter(x => x.type === 'exp').forEach(x => spent[x.cat] = (spent[x.cat] || 0) + x.amount);
-  $('#budgetBox').innerHTML = '<h2 class="font-semibold">งบรายหมวดหมู่ (เดือนนี้)</h2>' + cfg.cats.exp.map(c => {
-    const b = +cfg.budgets[c] || 0, u = spent[c] || 0, p = b ? u / b * 100 : 0, col = p >= 100 ? '#E2557C' : p >= 80 ? '#F5A524' : '#6E8DE8';
-    return `<div><div class="flex items-center justify-between gap-2 text-sm mb-1"><span class="flex-1 min-w-0 truncate">${esc(c)}</span><span class="text-mute text-xs">${fmt(u)} /</span>
-    <input type="number" min="0" inputmode="decimal" data-c="${esc(c)}" value="${b || ''}" placeholder="ตั้งงบ" class="w-24 px-2 py-1.5 border border-line rounded-lg text-right"></div>
-    ${b ? `<div class="pb"><i style="width:${Math.min(p, 100)}%;background:${col}"></i></div><div class="text-xs mt-1" style="color:${col}">${p >= 100 ? 'เกินงบ ' + fmt(u - b) + ' บาท' : p >= 80 ? 'ใกล้เต็มงบแล้ว (' + Math.round(p) + '%)' : 'ใช้ไป ' + Math.round(p) + '%'}</div>` : ''}</div>`;
-  }).join('');
+  const rows = Object.entries(cfg.budgets).map(([c, b]) => {
+    b = +b || 0; const u = spent[c] || 0, p = b ? u / b * 100 : 0, col = p >= 100 ? '#E2557C' : p >= 80 ? '#F5A524' : '#6E8DE8';
+    return `<div><div class="flex items-center gap-1 text-sm mb-1"><span class="flex-1 min-w-0 truncate font-medium">${esc(c)}</span>
+      <button data-act="bedit" data-c="${esc(c)}" class="text-mute px-1" aria-label="แก้ชื่องบ">✎</button><button data-act="bdel" data-c="${esc(c)}" class="text-mute px-1" aria-label="ลบงบ">✕</button></div>
+      <div class="flex items-center gap-2 text-xs text-mute mb-1"><span class="flex-1">ใช้ไป ${fmt(u)} จาก</span><input type="number" min="0" step="any" inputmode="decimal" data-c="${esc(c)}" value="${b}" aria-label="งบ ${esc(c)}" class="w-28 px-2 py-1.5 border border-line rounded-lg text-right text-ink"></div>
+      <div class="pb"><i style="width:${Math.min(p, 100)}%;background:${col}"></i></div>
+      <div class="text-xs mt-1" style="color:${col}">${p >= 100 ? 'เกินงบ ' + fmt(u - b) + ' บาท' : p >= 80 ? 'ใกล้เต็มงบแล้ว (' + Math.round(p) + '%)' : 'ใช้ไป ' + Math.round(p) + '%'}</div></div>`;
+  });
+  $('#budgetList').innerHTML = rows.join('') || '<p class="text-sm text-mute">ยังไม่มีงบ เพิ่มด้านล่างได้เลย เช่น อาหาร 5,000</p>';
 }
-$('#budgetBox').onchange = e => {
-  const c = e.target.dataset.c; if (c == null) return;
-  const v = +e.target.value; if (v > 0) cfg.budgets[c] = v; else delete cfg.budgets[c];
-  touchCfg(); renderBudget();
+$('#budgetList').onchange = e => {
+  const c = e.target.dataset.c; if (c == null || e.target.tagName !== 'INPUT') return;
+  const v = parseFloat(e.target.value);
+  if (v > 0) { cfg.budgets[c] = v; touchCfg(); } else toast('ใส่งบมากกว่า 0 หรือกด ✕ เพื่อลบงบ');
+  renderBudget();
+};
+$('#budgetList').onclick = e => {
+  const b = e.target.closest('button[data-act]'); if (!b) return; const c = b.dataset.c;
+  if (b.dataset.act === 'bdel') { if (confirm(`ลบงบ “${c}”? หมวดหมู่และรายการยังอยู่ครบ`)) { delete cfg.budgets[c]; touchCfg(); renderAll(); } return; }
+  const i = cfg.cats.exp.indexOf(c);
+  if (i >= 0) { window.catEdit('exp', i); return; }
+  const n = (prompt('ชื่องบใหม่', c) || '').trim(); if (!n || n === c || cfg.budgets[n] != null) return;
+  cfg.budgets[n] = cfg.budgets[c]; delete cfg.budgets[c]; touchCfg(); renderAll();
+};
+$('#budAdd').onclick = () => {
+  const n = $('#budName').value.trim(), v = parseFloat($('#budAmt').value);
+  if (!n) { toast('ใส่ชื่องบก่อน'); return; }
+  if (!(v > 0)) { toast('ใส่จำนวนงบก่อน'); return; }
+  if (cfg.budgets[n] != null) { toast('มีงบนี้อยู่แล้ว แก้ตัวเลขในรายการได้เลย'); return; }
+  if (!cfg.cats.exp.includes(n)) cfg.cats.exp.push(n);
+  cfg.budgets[n] = v; $('#budName').value = ''; $('#budAmt').value = ''; touchCfg(); renderAll(); toast('เพิ่มงบแล้ว ✓');
 };
 
 function renderCats() {
@@ -328,6 +351,91 @@ window.catDel = (t, i) => {
   cfg.cats[t].splice(i, 1); delete cfg.budgets[o]; touchCfg(); renderAll();
 };
 
+/* ---------- เป้าหมายการออม ---------- */
+let goalEditId = null;
+const goalAcc = g => cfg.accs.find(a => a.id === g.acc);
+const goalNow = g => { const a = goalAcc(g); return a ? bal(a) : 0; };
+function fillGoalAccs() {
+  const used = new Set(cfg.goals.filter(g => g.id !== goalEditId).map(g => g.acc));
+  const free = cfg.accs.filter(a => !used.has(a.id));
+  keepSel($('#gAcc'), free.map(a => `<option value="${esc(a.id)}">${esc(a.name)}</option>`).join(''));
+  $('#gHint').textContent = free.length ? '' : 'ทุกบัญชีมีเป้าหมายแล้ว ไปเพิ่มบัญชีใหม่ในหน้า “บัญชี” ก่อน';
+}
+function resetGoalForm() {
+  goalEditId = null; $('#gName').value = ''; $('#gTarget').value = '';
+  $('#gSave').textContent = 'สร้างเป้าหมาย'; $('#gTitle').textContent = 'สร้างเป้าหมายใหม่'; $('#gCancel').classList.add('hidden'); fillGoalAccs();
+}
+function renderGoals() {
+  fillGoalAccs();
+  $('#goalList').innerHTML = cfg.goals.map(g => {
+    const a = goalAcc(g), now = goalNow(g), p = g.target > 0 ? now / g.target * 100 : 0, done = p >= 100;
+    return `<div class="bg-white border border-line rounded-xl p-4 ${done ? 'goal-done' : ''}">
+      <div class="flex justify-between items-start gap-2"><div class="font-medium truncate">${esc(g.name)}</div><div class="shrink-0">
+      <button data-act="gedit" data-id="${esc(g.id)}" class="text-mute px-1" aria-label="แก้ไข">✎</button><button data-act="gdel" data-id="${esc(g.id)}" class="text-mute px-1" aria-label="ลบ">✕</button></div></div>
+      <div class="text-xs text-mute mb-2">${a ? 'บัญชี: ' + esc(a.name) : '⚠ บัญชีที่ผูกไว้ถูกลบแล้ว กดแก้ไขเพื่อเลือกบัญชีใหม่'}</div>
+      <div class="pb goal-bar"><i style="width:${Math.max(0, Math.min(p, 100))}%"></i></div>
+      <div class="flex justify-between items-baseline mt-2 text-sm"><span><b>${fmt(now)}</b> / ${fmt(g.target)} บาท</span><b class="${done ? 'text-inc' : ''}">${Math.max(0, Math.floor(p))}%</b></div>
+      ${done ? '<div class="badge-done">เป้าหมายสำเร็จแล้ว! 🎉</div>' : `<div class="text-xs text-mute mt-1">อีก ${fmt(g.target - now)} บาทจะถึงเป้า</div>`}</div>`;
+  }).join('') || '<p class="p-6 text-center text-mute bg-white border border-line rounded-xl">ยังไม่มีเป้าหมาย ลองสร้างด้านล่าง เช่น “เก็บเงินซื้อรถ”</p>';
+}
+function checkGoals() {
+  let ch = false;
+  cfg.goals.forEach(g => {
+    const p = goalAcc(g) && g.target > 0 ? goalNow(g) / g.target * 100 : 0;
+    if (p >= 100 && !g.done) { g.done = true; ch = true; confetti(); toast(`เป้าหมาย “${g.name}” สำเร็จแล้ว! 🎉`); }
+    else if (p < 100 && g.done) { g.done = false; ch = true; }
+  });
+  if (ch) touchCfg();
+}
+$('#goalList').onclick = e => {
+  const b = e.target.closest('button[data-act]'); if (!b) return;
+  const g = cfg.goals.find(x => x.id === b.dataset.id); if (!g) return;
+  if (b.dataset.act === 'gdel') {
+    if (confirm(`ลบเป้าหมาย “${g.name}”? เงินในบัญชีจะไม่หายไปไหน`)) { cfg.goals = cfg.goals.filter(x => x.id !== g.id); if (goalEditId === g.id) resetGoalForm(); touchCfg(); renderAll(); }
+    return;
+  }
+  goalEditId = g.id; fillGoalAccs();
+  $('#gName').value = g.name; $('#gTarget').value = g.target; $('#gAcc').value = g.acc;
+  $('#gSave').textContent = 'บันทึกการแก้ไข'; $('#gTitle').textContent = 'แก้ไขเป้าหมาย'; $('#gCancel').classList.remove('hidden'); $('#gName').focus();
+};
+$('#gCancel').onclick = resetGoalForm;
+$('#gSave').onclick = () => {
+  const n = $('#gName').value.trim(), t = parseFloat($('#gTarget').value), a = $('#gAcc').value;
+  if (!n) { toast('ใส่ชื่อเป้าหมายก่อน'); return; }
+  if (!(t > 0)) { toast('ใส่จำนวนเงินเป้าหมายก่อน'); return; }
+  if (!a) { toast('เลือกบัญชีที่ผูกกับเป้าหมายก่อน (ถ้าไม่มีบัญชีว่าง ให้เพิ่มบัญชีใหม่)'); return; }
+  if (cfg.goals.some(g => g.acc === a && g.id !== goalEditId)) { toast('บัญชีนี้ผูกกับเป้าหมายอื่นแล้ว'); return; }
+  if (goalEditId) { const g = cfg.goals.find(x => x.id === goalEditId); if (g) Object.assign(g, { name: n, target: t, acc: a }); }
+  else cfg.goals.push({ id: 'g' + Date.now().toString(36), name: n, target: t, acc: a, done: false });
+  resetGoalForm(); touchCfg(); renderAll(); toast('บันทึกเป้าหมายแล้ว ✓');
+};
+
+/* ---------- นำเข้าข้อมูล JSON ---------- */
+function importData(o) {
+  if (Array.isArray(o)) o = { tx: o };
+  if (!o || !Array.isArray(o.tx)) throw new Error('bad file');
+  const r = { tx: o.tx.map(x => ({ ...x, amount: +x.amount, u: +x.u || 0 })).filter(x => x && x.id != null && /^\d{4}-\d{2}-\d{2}$/.test(x.date) && x.amount > 0 && ['inc', 'exp', 'tf'].includes(x.type)), del: o.del || {} };
+  const c = o.cfg;
+  if (c && Array.isArray(c.accs) && c.accs.length && c.cats && Array.isArray(c.cats.exp) && Array.isArray(c.cats.inc))
+    r.cfg = { cats: c.cats, accs: c.accs, budgets: c.budgets || {}, goals: Array.isArray(c.goals) ? c.goals : [], u: Date.now() };
+  if (o.plan && GOALS[o.plan.goal]) r.plan = { ...o.plan, u: Date.now() };
+  merge(r); save(); renderAll();
+  return r.tx.length;
+}
+$('#importBtn').onclick = () => $('#importFile').click();
+$('#importFile').onchange = e => {
+  const f = e.target.files[0]; e.target.value = ''; if (!f) return;
+  const rd = new FileReader();
+  rd.onload = () => {
+    try {
+      const o = JSON.parse(rd.result);
+      if (!confirm('นำเข้าข้อมูลจากไฟล์นี้? รายการจะถูกรวมกับที่มีอยู่ (ไม่ซ้ำ) ส่วนหมวดหมู่ บัญชี งบ และเป้าหมายในไฟล์จะใช้แทนของเครื่องนี้')) return;
+      toast(`นำเข้าแล้ว ${importData(o)} รายการ ✓`);
+    } catch (err) { toast('ไฟล์ไม่ถูกต้อง นำเข้าไม่ได้'); }
+  };
+  rd.readAsText(f);
+};
+
 /* ---------- Routing ---------- */
 function route() {
   const v = VIEWS.some(x => x[0] === location.hash.slice(1)) ? location.hash.slice(1) : 'home';
@@ -335,7 +443,7 @@ function route() {
   $$('#navTop a,#navBottom a').forEach(a => a.classList.toggle('on', a.getAttribute('href') === '#' + v));
   renderAll();
 }
-function renderAll() { fillCats(); fillAccs(); renderHome(); renderTx(); renderSummary(); renderPlan(); renderBudget(); renderAccounts(); renderCats(); }
+function renderAll() { fillCats(); fillAccs(); renderHome(); renderTx(); renderSummary(); renderPlan(); renderBudget(); renderAccounts(); renderGoals(); renderCats(); checkGoals(); }
 $('#q').oninput = renderTx; $('#ftype').onchange = renderTx;
 $('#navTop').innerHTML = VIEWS.map(([k, l]) => `<a class="nav-a" href="#${k}">${l}</a>`).join('');
 $('#navBottom').innerHTML = VIEWS.map(([k, l]) => `<a href="#${k}">${l}</a>`).join('');
@@ -354,7 +462,7 @@ $('#aiBtn').onclick = async () => {
   const summary = {
     goal: GOALS[plan.goal].label, monthlyIncome: +plan.income || sum(m, 'inc'), fixedCosts: +plan.fixed || 0,
     spentThisMonth: sum(m, 'exp'), dayOfMonth: now.getDate(), daysInMonth: new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate(),
-    spendByCategoryLast90Days: cats, categoryBudgets: cfg.budgets,
+    spendByCategoryLast90Days: cats, categoryBudgets: cfg.budgets, savingGoals: cfg.goals.map(g => ({ name: g.name, target: g.target, saved: goalNow(g) })),
     recent: sorted(tx).slice(0, 20).map(x => ({ name: x.name, amount: x.amount, type: x.type, cat: x.cat, date: x.date }))
   };
   btn.disabled = true; out.innerHTML = '<span class="dots"><span></span><span></span><span></span></span>';
@@ -382,7 +490,7 @@ function merge(r) {
   tx = [...m.values()].filter(x => !(del[x.id] > (x.u || 0)));
   sync.del = del;
   if (r.plan && (r.plan.u || 0) > (plan.u || 0)) plan = r.plan;
-  if (r.cfg && r.cfg.cats && r.cfg.accs && (r.cfg.u || 0) > (cfg.u || 0)) cfg = r.cfg;
+  if (r.cfg && r.cfg.cats && r.cfg.accs && (r.cfg.u || 0) > (cfg.u || 0)) { const g = cfg.goals; cfg = r.cfg; cfg.goals = cfg.goals || g || []; cfg.budgets = cfg.budgets || {}; }
 }
 async function doSync() {
   if (!sync.code || !AI_URL || syncing) return;
