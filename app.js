@@ -1,10 +1,11 @@
 // หลัง deploy Worker แล้ว ใส่ URL ของ Worker ตรงนี้ เช่น "https://expense-ai.ชื่อคุณ.workers.dev"
 const AI_URL = "https://expense-ai.phuriphat-zxc84.workers.dev";
 const $ = s => document.querySelector(s), $$ = s => [...document.querySelectorAll(s)];
-const CATS = {
+const DEF_CATS = {
   exp: ['อาหาร', 'เดินทาง', 'ของใช้', 'บิล/ค่าบริการ', 'บันเทิง', 'สุขภาพ', 'อื่นๆ'],
   inc: ['เงินเดือน', 'รายได้เสริม', 'ของขวัญ', 'อื่นๆ']
 };
+const CATS = new Proxy({}, { get: (_, k) => cfg.cats[k] });
 const KW = {
   'อาหาร': ['ข้าว', 'ก๋วยเตี๋ยว', 'กาแฟ', 'ชา', 'อาหาร', 'ขนม', 'น้ำ', 'หมู', 'ไก่', 'ส้มตำ', 'กิน', 'ชานม'],
   'เดินทาง': ['รถ', 'น้ำมัน', 'แท็กซี่', 'bts', 'mrt', 'วิน', 'เดินทาง', 'grab', 'ทางด่วน'],
@@ -21,12 +22,13 @@ const GOALS = {
   worth: { label: 'ใช้ให้คุ้ม', rate: .1, wk: [1, 1, 1, 1, 1.2, 1.4, 1.2] },
   bal: { label: 'สมดุล', rate: .2, wk: [1, 1, 1, 1, 1, 1, 1] }
 };
-const VIEWS = [['home', 'หน้าหลัก'], ['transactions', 'รายการ'], ['summary', 'สรุป'], ['planner', 'วางแผน'], ['settings', 'ตั้งค่า']];
+const VIEWS = [['home', 'หน้าหลัก'], ['transactions', 'รายการ'], ['summary', 'สรุป'], ['planner', 'วางแผน'], ['accounts', 'บัญชี'], ['settings', 'ตั้งค่า']];
 
 const load = (k, d) => { try { return JSON.parse(localStorage.getItem(k)) ?? d } catch { return d } };
-let tx = load('tx', []), plan = load('plan', { goal: 'bal', income: '', fixed: '' }), sync = load('sync', { code: '', del: {} });
+let tx = load('tx', []), plan = load('plan', { goal: 'bal', income: '', fixed: '' }), sync = load('sync', { code: '', del: {} }),
+  cfg = load('cfg', null) || { cats: JSON.parse(JSON.stringify(DEF_CATS)), accs: [{ id: 'cash', name: 'เงินสด', open: 0 }], budgets: {}, u: 0 };
 let type = 'exp', editId = null, lastId = null, catTouched = false, period = 'month';
-const persist = () => { localStorage.setItem('tx', JSON.stringify(tx)); localStorage.setItem('plan', JSON.stringify(plan)); localStorage.setItem('sync', JSON.stringify(sync)); };
+const persist = () => { localStorage.setItem('tx', JSON.stringify(tx)); localStorage.setItem('plan', JSON.stringify(plan)); localStorage.setItem('sync', JSON.stringify(sync)); localStorage.setItem('cfg', JSON.stringify(cfg)); };
 const save = () => { persist(); queueSync(); };
 const iso = d => new Date(d - d.getTimezoneOffset() * 6e4).toISOString().slice(0, 10);
 const today = () => iso(new Date());
@@ -46,13 +48,15 @@ function parse(t) {
   return { name: name || 'ไม่ระบุชื่อ', amount: parseFloat(last.replace(/,/g, '')) || 0 };
 }
 function guess(name) {
-  const n = name.toLowerCase();
-  for (const c in KW) if (KW[c].some(k => n.includes(k))) return c;
+  const n = name.toLowerCase(), all = [...cfg.cats.exp, ...cfg.cats.inc];
+  const own = all.find(c => c !== 'อื่นๆ' && n.includes(c.toLowerCase()));
+  if (own) return own;
+  for (const c in KW) if (all.includes(c) && KW[c].some(k => n.includes(k))) return c;
   return null;
 }
 function fillCats() {
   const cur = $('#cat').value;
-  $('#cat').innerHTML = CATS[type].map(c => `<option>${c}</option>`).join('');
+  $('#cat').innerHTML = CATS[type].map(c => `<option value="${esc(c)}">${esc(c)}</option>`).join('');
   if (CATS[type].includes(cur)) $('#cat').value = cur;
 }
 function setType(t) {
@@ -64,48 +68,53 @@ function setType(t) {
 /* ---------- Form ---------- */
 $('#text').addEventListener('input', e => {
   const p = parse(e.target.value);
-  if (!e.target.value.trim()) { $('#preview').textContent = ''; return; }
+  if (!e.target.value.trim()) { $('#preview').textContent = ''; $('#nameIn').value = ''; $('#amtIn').value = ''; return; }
   const g = guess(p.name);
   if (g && !catTouched) {
     const t = CATS.inc.includes(g) && !CATS.exp.includes(g) ? 'inc' : CATS.exp.includes(g) ? 'exp' : type;
     if (t !== type) setType(t);
     $('#cat').value = g;
   }
-  $('#preview').innerHTML = `ชื่อ: <b>${esc(p.name)}</b> · ยอด: <b class="${type === 'exp' ? 'text-exp' : 'text-inc'}">${fmt(p.amount)} บาท</b>`;
+  $('#nameIn').value = p.name === 'ไม่ระบุชื่อ' ? '' : p.name; $('#amtIn').value = p.amount || '';
 });
 $('#cat').addEventListener('change', () => catTouched = true);
 $$('.tg').forEach(b => b.onclick = () => setType(b.dataset.type));
 $('#form').addEventListener('submit', e => {
   e.preventDefault();
-  const p = parse($('#text').value);
-  if (!p.amount) { $('#preview').innerHTML = '<span class="text-exp">ใส่จำนวนเงินด้วย เช่น ก๋วยเตี๋ยว 50</span>'; return; }
-  const rec = { id: editId || Date.now(), name: p.name, amount: p.amount, type, cat: $('#cat').value, date: $('#date').value || today(), u: Date.now() };
+  const p = { name: $('#nameIn').value.trim() || 'ไม่ระบุชื่อ', amount: parseFloat($('#amtIn').value) };
+  if (!(p.amount > 0)) { $('#preview').innerHTML = '<span class="text-exp">ใส่จำนวนเงินด้วย เช่น ก๋วยเตี๋ยว 50</span>'; return; }
+  const rec = { id: editId || Date.now(), name: p.name, amount: p.amount, type, cat: $('#cat').value, acc: $('#accSel').value, date: $('#date').value || today(), u: Date.now() };
   tx = editId ? tx.map(x => x.id === editId ? rec : x) : [...tx, rec];
-  lastId = rec.id; save(); resetForm(); renderAll(); lastId = null;
+  lastId = rec.id; save(); resetForm(); renderAll(); lastId = null; afterSave(rec);
 });
 $('#cancelEdit').onclick = resetForm;
 function resetForm() {
   editId = null; catTouched = false;
-  $('#text').value = ''; $('#preview').textContent = ''; $('#date').value = today();
+  $('#text').value = ''; $('#nameIn').value = ''; $('#amtIn').value = ''; $('#preview').textContent = ''; $('#date').value = today();
   $('#saveBtn').textContent = 'บันทึกข้อมูล'; $('#cancelEdit').classList.add('hidden');
   setType('exp');
 }
 window.edit = id => {
   const x = tx.find(t => t.id === id); if (!x) return;
   editId = id; catTouched = true; setType(x.type);
-  $('#text').value = `${x.name} ${x.amount}`; $('#cat').value = x.cat; $('#date').value = x.date;
+  $('#text').value = ''; $('#nameIn').value = x.name; $('#amtIn').value = x.amount; if (![...$('#cat').options].some(o => o.value === x.cat)) $('#cat').add(new Option(x.cat, x.cat)); $('#cat').value = x.cat; $('#date').value = x.date; if (x.acc) $('#accSel').value = x.acc;
   $('#saveBtn').textContent = 'อัปเดตข้อมูล'; $('#cancelEdit').classList.remove('hidden');
   location.hash = 'home'; window.scrollTo({ top: 0, behavior: 'smooth' }); $('#text').focus();
 };
 window.del = id => { if (confirm('ลบรายการนี้?')) { tx = tx.filter(x => x.id !== id); sync.del[id] = Date.now(); save(); renderAll(); } };
 
 /* ---------- Render ---------- */
-const rowHTML = x => `<div class="row ${x.id === lastId ? 'new' : ''} px-4 py-3 flex items-center gap-3">
-  <span class="w-1.5 self-stretch rounded ${x.type === 'exp' ? 'bg-exp' : 'bg-inc'}"></span>
-  <div class="flex-1 min-w-0"><div class="font-medium truncate">${esc(x.name)}</div><div class="text-xs text-mute">${x.cat} · ${x.date}</div></div>
-  <div class="font-bold ${x.type === 'exp' ? 'text-exp' : 'text-inc'}">${x.type === 'exp' ? '−' : '+'}${fmt(x.amount)}</div>
-  <button onclick="edit(${x.id})" class="text-mute px-1" aria-label="แก้ไข">✎</button>
+const accName = id => cfg.accs.find(a => a.id === id)?.name || '';
+const rowHTML = x => {
+  const tf = x.type === 'tf', exp = x.type === 'exp';
+  const sub = tf ? `ย้ายเงิน · ${x.date}` : `${esc(x.cat)}${accName(x.acc) ? ' · ' + esc(accName(x.acc)) : ''} · ${x.date}`;
+  return `<div class="row ${x.id === lastId ? 'new' : ''} px-4 py-3 flex items-center gap-3">
+  <span class="w-1.5 self-stretch rounded ${tf ? 'bg-tf' : exp ? 'bg-exp' : 'bg-inc'}"></span>
+  <div class="flex-1 min-w-0"><div class="font-medium truncate">${tf ? esc(accName(x.from) + ' → ' + accName(x.to)) : esc(x.name)}</div><div class="text-xs text-mute">${sub}</div></div>
+  <div class="font-bold ${tf ? 'text-mute' : exp ? 'text-exp' : 'text-inc'}">${tf ? '⇄ ' : exp ? '−' : '+'}${fmt(x.amount)}</div>
+  ${tf ? '' : `<button onclick="edit(${x.id})" class="text-mute px-1" aria-label="แก้ไข">✎</button>`}
   <button onclick="del(${x.id})" class="text-mute px-1" aria-label="ลบ">✕</button></div>`;
+};
 const sorted = a => [...a].sort((a, b) => b.date.localeCompare(a.date) || b.id - a.id);
 const card = (l, v, c) => `<div class="bg-white border border-line rounded-xl p-3"><div class="text-xs text-mute">${l}</div><div class="font-bold text-base sm:text-xl ${c}">${fmt(v)}</div></div>`;
 
@@ -142,7 +151,7 @@ function renderSummary() {
   $('#sumBody').innerHTML = `
   <div class="grid grid-cols-3 gap-2">${card('รายรับ', i, 'text-inc')}${card('รายจ่าย', e, 'text-exp')}${card('เฉลี่ย/วัน', e / days, '')}</div>
   <div class="bg-white border border-line rounded-xl p-4 space-y-3"><h2 class="font-bold">ใช้เงินไปกับอะไรบ้าง</h2>
-  ${Object.entries(cats).sort((a, b) => b[1] - a[1]).map(([c, v]) => `<div><div class="flex justify-between text-sm mb-1"><span>${c}</span><span>${fmt(v)} (${Math.round(v / e * 100)}%)</span></div><div class="bar" style="width:${v / e * 100}%"></div></div>`).join('') || '<p class="text-mute text-sm">ไม่มีรายจ่าย</p>'}</div>
+  ${Object.entries(cats).sort((a, b) => b[1] - a[1]).map(([c, v]) => `<div><div class="flex justify-between text-sm mb-1"><span>${esc(c)}</span><span>${fmt(v)} (${Math.round(v / e * 100)}%)</span></div><div class="bar" style="width:${v / e * 100}%"></div></div>`).join('') || '<p class="text-mute text-sm">ไม่มีรายจ่าย</p>'}</div>
   <div class="bg-white border border-line rounded-xl"><h2 class="font-bold px-4 py-3 border-b border-line">รายจ่ายสูงสุด</h2>${top.map(rowHTML).join('') || '<p class="p-4 text-mute text-sm">ไม่มีรายจ่าย</p>'}</div>`;
 }
 
@@ -179,7 +188,7 @@ function renderPlan() {
    <div class="max-h-96 overflow-y-auto">${dates.map((dt, i) => {
     const b = perUnit * ws[i];
     return `<div class="row px-4 py-3"><div class="flex justify-between"><b>${dt.toLocaleDateString('th-TH', { weekday: 'short', day: 'numeric', month: 'short' })}</b><b>${fmt(b)} บาท</b></div>
-    <div class="text-xs text-mute mt-1">${share.slice(0, 4).map(([c, s]) => `${c} ${fmt(b * s)}`).join(' · ')}</div></div>`;
+    <div class="text-xs text-mute mt-1">${share.slice(0, 4).map(([c, s]) => `${esc(c)} ${fmt(b * s)}`).join(' · ')}</div></div>`;
   }).join('')}</div></div>`;
 }
 $('#pIncome').oninput = e => { plan.income = e.target.value; plan.u = Date.now(); save(); renderPlan(); };
@@ -193,6 +202,132 @@ $('#exportBtn').onclick = () => {
 };
 $('#clearBtn').onclick = () => { if (confirm('ลบข้อมูลทั้งหมดถาวร?')) { tx.forEach(x => sync.del[x.id] = Date.now()); tx = []; save(); renderAll(); } };
 
+/* ---------- หมวดหมู่ / บัญชี / งบ / เอฟเฟกต์ ---------- */
+function keepSel(el, html) { const v = el.value; el.innerHTML = html; if ([...el.options].some(o => o.value === v)) el.value = v; }
+function touchCfg() { cfg.u = Date.now(); save(); }
+const bal = a => tx.reduce((s, x) => {
+  if (x.type === 'tf') { if (x.to === a.id) s += x.amount; if (x.from === a.id) s -= x.amount; }
+  else if (x.acc === a.id) s += x.type === 'inc' ? x.amount : -x.amount;
+  return s;
+}, +a.open || 0);
+let toastT;
+function toast(m) {
+  let t = $('.toast');
+  if (!t) { t = document.createElement('div'); t.className = 'toast'; t.setAttribute('role', 'status'); document.body.appendChild(t); }
+  t.textContent = m; void t.offsetWidth; t.classList.add('show');
+  clearTimeout(toastT); toastT = setTimeout(() => t.classList.remove('show'), 2400);
+}
+function confetti() {
+  if (window.matchMedia && matchMedia('(prefers-reduced-motion:reduce)').matches) return;
+  const c = ['#8FADEB', '#B9B2F0', '#F4A9C2', '#6FD6B8', '#FFD27A'];
+  for (let i = 0; i < 48; i++) {
+    const d = document.createElement('i'); d.className = 'cf';
+    d.style.cssText = `left:${Math.random() * 100}vw;background:${c[i % 5]};--x:${Math.random() * 160 - 80}px;animation-delay:${Math.random() * .3}s`;
+    document.body.appendChild(d); setTimeout(() => d.remove(), 2400);
+  }
+}
+function afterSave(rec) {
+  if (rec.type === 'inc') { confetti(); toast('บันทึกรายรับแล้ว 🎉'); return; }
+  const b = +cfg.budgets[rec.cat];
+  if (!b) { toast('บันทึกแล้ว ✓'); return; }
+  const pct = sum(thisMonth().filter(x => x.cat === rec.cat), 'exp') / b * 100;
+  toast(pct >= 100 ? `เกินงบ “${rec.cat}” แล้ว (${Math.round(pct)}%)` : pct >= 80 ? `ใกล้เต็มงบ “${rec.cat}” แล้ว (${Math.round(pct)}%)` : 'บันทึกแล้ว ✓');
+}
+function checkSaved() {
+  const d = new Date(); d.setDate(1); d.setMonth(d.getMonth() - 1);
+  const pm = iso(d).slice(0, 7); if (localStorage.getItem('cm') === pm) return;
+  const m = tx.filter(x => x.date.slice(0, 7) === pm), i = sum(m, 'inc'); if (!i) return;
+  localStorage.setItem('cm', pm);
+  const r = (i - sum(m, 'exp')) / i;
+  if (r >= GOALS[plan.goal].rate) { confetti(); toast(`เดือนที่แล้วออมได้ ${Math.round(r * 100)}% ถึงเป้าแล้ว 🎉`); }
+}
+function chips(el, target, vals) {
+  el.innerHTML = vals.map(v => `<button type="button" data-v="${v}" class="chip">+${v}</button>`).join('') + '<button type="button" data-v="0" class="chip">ล้าง</button>';
+  el.onclick = e => {
+    const v = e.target.dataset.v; if (v == null) return;
+    const i = $(target); i.value = v === '0' ? '' : (Math.round(((+i.value || 0) + +v) * 100) / 100 || '');
+  };
+}
+chips($('#chips'), '#amtIn', [50, 100, 500, 1000]);
+chips($('#tfChips'), '#tfAmt', [100, 500, 1000, 2000, 5000]);
+
+function fillAccs() { keepSel($('#accSel'), cfg.accs.map(a => `<option value="${esc(a.id)}">บัญชี: ${esc(a.name)}</option>`).join('')); }
+function renderAccounts() {
+  const tot = cfg.accs.reduce((s, a) => s + bal(a), 0);
+  $('#accBody').innerHTML = `<div class="bg-ink text-white rounded-xl p-5"><div class="text-sm opacity-90">ยอดรวมทุกบัญชี</div><div class="text-3xl font-bold">${fmt(tot)} <span class="text-base font-normal">บาท</span></div></div>
+  <div class="grid sm:grid-cols-2 gap-3">${cfg.accs.map(a => `<div class="bg-white border border-line rounded-xl p-4">
+    <div class="flex justify-between items-start gap-2"><div class="font-medium truncate">${esc(a.name)}</div><div class="shrink-0">
+    <button onclick="accEdit('${a.id}')" class="text-mute px-1" aria-label="เปลี่ยนชื่อ">✎</button><button onclick="accDel('${a.id}')" class="text-mute px-1" aria-label="ลบ">✕</button></div></div>
+    <div class="text-2xl font-bold ${bal(a) < 0 ? 'text-exp' : ''}">${fmt(bal(a))}</div>
+    <button onclick="accAdjust('${a.id}')" class="text-xs text-mute underline mt-1">ปรับยอดให้ตรงกับของจริง</button></div>`).join('')}</div>`;
+  const o = cfg.accs.map(a => `<option value="${esc(a.id)}">${esc(a.name)}</option>`).join('');
+  keepSel($('#tfFrom'), o); keepSel($('#tfTo'), o);
+  if ($('#tfFrom').value === $('#tfTo').value && cfg.accs.length > 1) $('#tfTo').selectedIndex = ($('#tfFrom').selectedIndex + 1) % cfg.accs.length;
+}
+window.accEdit = id => { const a = cfg.accs.find(x => x.id === id); const n = (prompt('ชื่อบัญชี', a.name) || '').trim(); if (n) { a.name = n; touchCfg(); renderAll(); } };
+window.accAdjust = id => {
+  const a = cfg.accs.find(x => x.id === id), v = prompt('ยอดเงินจริงตอนนี้ (บาท)', bal(a)); if (v === null) return;
+  const n = parseFloat(v); if (isNaN(n)) return;
+  a.open = Math.round(((+a.open || 0) + n - bal(a)) * 100) / 100; touchCfg(); renderAll();
+};
+window.accDel = id => {
+  if (cfg.accs.length < 2) { toast('ต้องเหลืออย่างน้อย 1 บัญชี'); return; }
+  if (confirm('ลบบัญชีนี้? รายการเดิมยังอยู่ แต่จะไม่ถูกนับในยอดบัญชี')) { cfg.accs = cfg.accs.filter(x => x.id !== id); touchCfg(); renderAll(); }
+};
+$('#accAdd').onclick = () => {
+  const n = $('#accName').value.trim(); if (!n) { toast('ใส่ชื่อบัญชีก่อน'); return; }
+  cfg.accs.push({ id: 'a' + Date.now().toString(36), name: n, open: parseFloat($('#accOpen').value) || 0 });
+  $('#accName').value = ''; $('#accOpen').value = ''; touchCfg(); renderAll(); toast('เพิ่มบัญชีแล้ว ✓');
+};
+$('#tfSwap').onclick = () => { const f = $('#tfFrom').value; $('#tfFrom').value = $('#tfTo').value; $('#tfTo').value = f; };
+$('#tfGo').onclick = () => {
+  const f = $('#tfFrom').value, t = $('#tfTo').value, amt = parseFloat($('#tfAmt').value);
+  if (!(amt > 0)) { toast('ใส่จำนวนเงินก่อน'); return; }
+  if (f === t) { toast('เลือกบัญชีต้นทางกับปลายทางให้ต่างกัน'); return; }
+  tx.push({ id: Date.now(), type: 'tf', name: 'ย้ายเงิน', cat: 'ย้ายเงิน', amount: amt, from: f, to: t, date: today(), u: Date.now() });
+  $('#tfAmt').value = ''; save(); renderAll(); toast('ย้ายเงินแล้ว ✓');
+};
+
+function renderBudget() {
+  const spent = {}; thisMonth().filter(x => x.type === 'exp').forEach(x => spent[x.cat] = (spent[x.cat] || 0) + x.amount);
+  $('#budgetBox').innerHTML = '<h2 class="font-semibold">งบรายหมวดหมู่ (เดือนนี้)</h2>' + cfg.cats.exp.map(c => {
+    const b = +cfg.budgets[c] || 0, u = spent[c] || 0, p = b ? u / b * 100 : 0, col = p >= 100 ? '#E2557C' : p >= 80 ? '#F5A524' : '#6E8DE8';
+    return `<div><div class="flex items-center justify-between gap-2 text-sm mb-1"><span class="flex-1 min-w-0 truncate">${esc(c)}</span><span class="text-mute text-xs">${fmt(u)} /</span>
+    <input type="number" min="0" inputmode="decimal" data-c="${esc(c)}" value="${b || ''}" placeholder="ตั้งงบ" class="w-24 px-2 py-1.5 border border-line rounded-lg text-right"></div>
+    ${b ? `<div class="pb"><i style="width:${Math.min(p, 100)}%;background:${col}"></i></div><div class="text-xs mt-1" style="color:${col}">${p >= 100 ? 'เกินงบ ' + fmt(u - b) + ' บาท' : p >= 80 ? 'ใกล้เต็มงบแล้ว (' + Math.round(p) + '%)' : 'ใช้ไป ' + Math.round(p) + '%'}</div>` : ''}</div>`;
+  }).join('');
+}
+$('#budgetBox').onchange = e => {
+  const c = e.target.dataset.c; if (c == null) return;
+  const v = +e.target.value; if (v > 0) cfg.budgets[c] = v; else delete cfg.budgets[c];
+  touchCfg(); renderBudget();
+};
+
+function renderCats() {
+  const sec = (t, title) => `<div><h3 class="font-medium mb-2">${title}</h3><div class="space-y-1.5">${cfg.cats[t].map((c, i) => `<div class="item"><span class="flex-1 truncate">${esc(c)}</span>
+    <button onclick="catEdit('${t}',${i})" class="text-mute px-1" aria-label="แก้ชื่อ">✎</button><button onclick="catDel('${t}',${i})" class="text-mute px-1" aria-label="ลบ">✕</button></div>`).join('')}</div>
+    <div class="flex gap-2 mt-2"><input data-add="${t}" maxlength="20" placeholder="เพิ่มหมวดใหม่" class="flex-1 min-w-0 px-3 py-2.5 border border-line rounded-lg"><button onclick="catAdd('${t}')" class="px-4 rounded-lg bg-ink text-white">เพิ่ม</button></div></div>`;
+  $('#catBox').innerHTML = '<h2 class="font-semibold">จัดการหมวดหมู่</h2>' + sec('exp', 'หมวดรายจ่าย') + sec('inc', 'หมวดรายรับ');
+}
+window.catAdd = t => {
+  const n = document.querySelector(`[data-add="${t}"]`).value.trim(); if (!n) return;
+  if (cfg.cats[t].includes(n)) { toast('มีหมวดนี้อยู่แล้ว'); return; }
+  cfg.cats[t].push(n); touchCfg(); renderAll();
+};
+window.catEdit = (t, i) => {
+  const o = cfg.cats[t][i], n = (prompt('ชื่อหมวดใหม่', o) || '').trim(); if (!n || n === o) return;
+  if (cfg.cats[t].includes(n)) { toast('มีหมวดนี้อยู่แล้ว'); return; }
+  cfg.cats[t][i] = n;
+  tx.forEach(x => { if (x.type === t && x.cat === o) { x.cat = n; x.u = Date.now(); } });
+  if (t === 'exp' && cfg.budgets[o] != null) { cfg.budgets[n] = cfg.budgets[o]; delete cfg.budgets[o]; }
+  touchCfg(); renderAll();
+};
+window.catDel = (t, i) => {
+  if (cfg.cats[t].length < 2) { toast('ต้องเหลืออย่างน้อย 1 หมวด'); return; }
+  const o = cfg.cats[t][i]; if (!confirm(`ลบหมวด “${o}”? รายการเดิมยังอยู่ในชื่อเดิม`)) return;
+  cfg.cats[t].splice(i, 1); delete cfg.budgets[o]; touchCfg(); renderAll();
+};
+
 /* ---------- Routing ---------- */
 function route() {
   const v = VIEWS.some(x => x[0] === location.hash.slice(1)) ? location.hash.slice(1) : 'home';
@@ -200,7 +335,7 @@ function route() {
   $$('#navTop a,#navBottom a').forEach(a => a.classList.toggle('on', a.getAttribute('href') === '#' + v));
   renderAll();
 }
-function renderAll() { renderHome(); renderTx(); renderSummary(); renderPlan(); }
+function renderAll() { fillCats(); fillAccs(); renderHome(); renderTx(); renderSummary(); renderPlan(); renderBudget(); renderAccounts(); renderCats(); }
 $('#q').oninput = renderTx; $('#ftype').onchange = renderTx;
 $('#navTop').innerHTML = VIEWS.map(([k, l]) => `<a class="nav-a" href="#${k}">${l}</a>`).join('');
 $('#navBottom').innerHTML = VIEWS.map(([k, l]) => `<a href="#${k}">${l}</a>`).join('');
@@ -219,7 +354,7 @@ $('#aiBtn').onclick = async () => {
   const summary = {
     goal: GOALS[plan.goal].label, monthlyIncome: +plan.income || sum(m, 'inc'), fixedCosts: +plan.fixed || 0,
     spentThisMonth: sum(m, 'exp'), dayOfMonth: now.getDate(), daysInMonth: new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate(),
-    spendByCategoryLast90Days: cats,
+    spendByCategoryLast90Days: cats, categoryBudgets: cfg.budgets,
     recent: sorted(tx).slice(0, 20).map(x => ({ name: x.name, amount: x.amount, type: x.type, cat: x.cat, date: x.date }))
   };
   btn.disabled = true; out.innerHTML = '<span class="dots"><span></span><span></span><span></span></span>';
@@ -235,7 +370,8 @@ $('#aiBtn').onclick = async () => {
 /* ---------- ซิงค์ข้ามอุปกรณ์ (ผ่าน Worker + KV) ---------- */
 const BASE = AI_URL.replace(/\/+$/, '');
 let syncTimer = null, syncing = false;
-const setState = t => $('#syncState').textContent = t;
+const SS = { ok: ['ซิงค์แล้ว', '#22A383'], busy: ['กำลังซิงค์', '#F5A524'], err: ['ซิงค์ไม่สำเร็จ', '#E2557C'], off: ['ไม่ได้ซิงค์', '#B6BDD6'], offline: ['ออฟไลน์', '#B6BDD6'] };
+function setState(k) { const [l, c] = SS[k]; $('#syncState').innerHTML = `<i class="dot ${k === 'busy' ? 'pulse' : ''}" style="background:${c}"></i><span class="hidden sm:inline">${l}</span>`; $('#syncState').title = l; }
 const post = (path, body) => fetch(BASE + path, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
 function queueSync() { clearTimeout(syncTimer); if (sync.code) syncTimer = setTimeout(doSync, 1500); }
 function merge(r) {
@@ -246,20 +382,21 @@ function merge(r) {
   tx = [...m.values()].filter(x => !(del[x.id] > (x.u || 0)));
   sync.del = del;
   if (r.plan && (r.plan.u || 0) > (plan.u || 0)) plan = r.plan;
+  if (r.cfg && r.cfg.cats && r.cfg.accs && (r.cfg.u || 0) > (cfg.u || 0)) cfg = r.cfg;
 }
 async function doSync() {
   if (!sync.code || !AI_URL || syncing) return;
-  syncing = true; setState('☁ กำลังซิงค์...');
+  syncing = true; setState('busy');
   try {
     const g = await post('/sync/get', { code: sync.code });
     const r = await g.json(); if (!g.ok) throw new Error(r.error);
     merge(r.data || {});
-    const p = await post('/sync/put', { code: sync.code, data: { tx, del: sync.del, plan } });
+    const p = await post('/sync/put', { code: sync.code, data: { tx, del: sync.del, plan, cfg } });
     if (!p.ok) throw new Error('put');
     persist(); renderAll();
     $('#pIncome').value = plan.income || ''; $('#pFixed').value = plan.fixed || '';
-    setState('☁ ซิงค์แล้ว');
-  } catch (e) { setState('☁ ซิงค์ไม่สำเร็จ'); }
+    setState('ok');
+  } catch (e) { setState(navigator.onLine ? 'err' : 'offline'); }
   syncing = false;
 }
 function renderSync() {
@@ -279,6 +416,8 @@ $('#joinBtn').onclick = () => {
 };
 $('#copyCode').onclick = () => navigator.clipboard.writeText(sync.code).then(() => { $('#copyCode').textContent = 'คัดลอกแล้ว ✓'; setTimeout(() => $('#copyCode').textContent = 'คัดลอกรหัส', 1500); });
 $('#syncNow').onclick = doSync;
-$('#leaveBtn').onclick = () => { if (confirm('ยกเลิกการซิงค์บนเครื่องนี้? ข้อมูลในเครื่องยังอยู่')) { sync.code = ''; persist(); renderSync(); setState(''); } };
+$('#leaveBtn').onclick = () => { if (confirm('ยกเลิกการซิงค์บนเครื่องนี้? ข้อมูลในเครื่องยังอยู่')) { sync.code = ''; persist(); renderSync(); setState('off'); } };
 document.addEventListener('visibilitychange', () => { if (!document.hidden) doSync(); });
-renderSync(); doSync();
+renderSync(); setState(sync.code ? (navigator.onLine ? 'busy' : 'offline') : 'off'); doSync();
+window.addEventListener('online', doSync); window.addEventListener('offline', () => setState('offline'));
+checkSaved();

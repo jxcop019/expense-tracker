@@ -32,6 +32,11 @@
   <form id="form" class="bg-white border border-line rounded-xl p-4 space-y-3">
     <input id="text" autocomplete="off" placeholder="พิมพ์เช่น  ค่าอาหารกลางวัน 120" class="w-full text-lg px-4 py-3 border border-line rounded-lg focus:outline-none focus:ring-2 focus:ring-ink">
     <p id="preview" class="text-sm text-mute min-h-[1.25rem]"></p>
+    <div class="grid grid-cols-5 gap-2">
+      <input id="nameIn" maxlength="60" placeholder="ชื่อรายการ" class="col-span-3 min-w-0 px-3 py-2.5 border border-line rounded-lg">
+      <input id="amtIn" type="number" inputmode="decimal" min="0" step="any" placeholder="จำนวนเงิน" class="col-span-2 min-w-0 px-3 py-2.5 border border-line rounded-lg">
+    </div>
+    <div class="flex flex-wrap gap-2" id="chips"></div>
     <div class="grid grid-cols-2 gap-2" id="toggle">
       <button type="button" data-type="exp" class="tg py-2.5 rounded-lg font-medium">รายจ่าย</button>
       <button type="button" data-type="inc" class="tg py-2.5 rounded-lg font-medium">รายรับ</button>
@@ -40,6 +45,7 @@
       <select id="cat" class="px-3 py-2.5 border border-line rounded-lg bg-white"></select>
       <input id="date" type="date" class="px-3 py-2.5 border border-line rounded-lg">
     </div>
+    <select id="accSel" class="w-full px-3 py-2.5 border border-line rounded-lg bg-white"></select>
     <div class="flex gap-2">
       <button class="flex-1 py-3 rounded-lg bg-ink text-white font-medium" id="saveBtn">บันทึกข้อมูล</button>
       <button type="button" id="cancelEdit" class="hidden px-4 rounded-lg border border-line">ยกเลิก</button>
@@ -88,12 +94,37 @@
     </div>
   </div>
   <div id="planBody" class="space-y-4"></div>
+  <div id="budgetBox" class="bg-white border border-line rounded-xl p-4 space-y-4"></div>
   <div class="bg-white border border-line rounded-xl p-4 space-y-3">
     <div class="flex items-center justify-between gap-3">
       <div><h2 class="font-semibold">ที่ปรึกษา AI</h2><p class="text-xs text-mute">ส่งสรุปรายรับ-รายจ่ายของคุณให้ AI วิเคราะห์และแนะนำ</p></div>
       <button id="aiBtn" class="px-4 py-2.5 rounded-lg bg-ink text-white text-sm whitespace-nowrap">ขอคำแนะนำ</button>
     </div>
     <div id="aiOut" class="text-sm leading-relaxed whitespace-pre-line"></div>
+  </div>
+</section>
+
+<!-- ACCOUNTS -->
+<section data-view="accounts" class="hidden space-y-4">
+  <h1 class="text-xl font-bold">บัญชีและเงินสด</h1>
+  <div id="accBody" class="space-y-3"></div>
+  <div class="bg-white border border-line rounded-xl p-4 space-y-3">
+    <h2 class="font-semibold">ถอนเงิน / ย้ายเงินระหว่างบัญชี</h2>
+    <div class="grid grid-cols-[1fr_auto_1fr] gap-2 items-center">
+      <select id="tfFrom" aria-label="จากบัญชี" class="min-w-0 px-3 py-2.5 border border-line rounded-lg bg-white"></select>
+      <button id="tfSwap" type="button" class="px-2 text-lg" aria-label="สลับ">⇄</button>
+      <select id="tfTo" aria-label="ไปบัญชี" class="min-w-0 px-3 py-2.5 border border-line rounded-lg bg-white"></select>
+    </div>
+    <input id="tfAmt" type="number" inputmode="decimal" min="0" step="any" placeholder="จำนวนเงิน" class="w-full px-3 py-2.5 border border-line rounded-lg">
+    <div class="flex flex-wrap gap-2" id="tfChips"></div>
+    <button id="tfGo" class="w-full py-3 rounded-lg bg-ink text-white font-medium">ย้ายเงิน</button>
+    <p class="text-xs text-mute">ตัวอย่าง: ถอนเงินสดจากธนาคาร A เลือกต้นทาง = ธนาคาร A ปลายทาง = เงินสด</p>
+  </div>
+  <div class="bg-white border border-line rounded-xl p-4 space-y-3">
+    <h2 class="font-semibold">เพิ่มบัญชี</h2>
+    <div class="flex gap-2"><input id="accName" maxlength="20" placeholder="เช่น ธนาคาร A" class="flex-1 min-w-0 px-3 py-2.5 border border-line rounded-lg">
+    <input id="accOpen" type="number" inputmode="decimal" placeholder="ยอดตอนนี้" class="w-32 px-3 py-2.5 border border-line rounded-lg"></div>
+    <button id="accAdd" class="w-full py-2.5 rounded-lg bg-ink text-white font-medium">เพิ่มบัญชี</button>
   </div>
 </section>
 
@@ -115,8 +146,9 @@
       <button id="leaveBtn" class="w-full py-2 text-sm text-mute">ยกเลิกการซิงค์บนเครื่องนี้</button>
     </div>
   </div>
+  <div id="catBox" class="bg-white border border-line rounded-xl p-4 space-y-4"></div>
   <div class="bg-white border border-line rounded-xl p-4 space-y-3">
-    <p class="text-sm text-mute">ข้อมูลทั้งหมดเก็บในเบราว์เซอร์เครื่องนี้เท่านั้น</p>
+    <p class="text-sm text-mute">ข้อมูลเก็บในเครื่องนี้ และซิงค์ข้ามเครื่องผ่านรหัสซิงค์ด้านบน</p>
     <button id="exportBtn" class="w-full py-2.5 rounded-lg border border-line font-medium">ดาวน์โหลดข้อมูล (JSON)</button>
     <button id="clearBtn" class="w-full py-2.5 rounded-lg border border-exp text-exp font-medium">ลบข้อมูลทั้งหมด</button>
   </div>

@@ -43,3 +43,17 @@ button.bg-ink:hover{box-shadow:0 8px 18px -8px rgba(88,119,221,.8)}
 @keyframes blink{50%{opacity:.25;transform:translateY(-4px)}}
 button:focus-visible,a:focus-visible{outline:2px solid #8A77E8;outline-offset:2px}
 @media (prefers-reduced-motion:reduce){*,*::before,*::after{animation:none!important;transition:none!important}}
+.chip{padding:.35rem .85rem;border-radius:999px;border:1.5px solid var(--line);background:#fff;font-size:.85rem;color:var(--ink)}
+.chip:hover{background:#EEF2FF}
+.item{display:flex;align-items:center;gap:.5rem;padding:.55rem .8rem;border-radius:14px;background:#F4F6FF}
+.pb{height:8px;border-radius:4px;background:#EDF0FA;overflow:hidden}
+.pb i{display:block;height:100%;border-radius:4px;transition:width .6s cubic-bezier(.2,.8,.2,1)}
+.dot{display:inline-block;width:10px;height:10px;border-radius:50%;margin-right:6px;vertical-align:middle;box-shadow:0 0 0 3px rgba(120,130,170,.15)}
+.dot.pulse{animation:pulse 1s ease-in-out infinite}
+@keyframes pulse{50%{transform:scale(1.4);opacity:.6}}
+.bg-tf{background:linear-gradient(#C9C2F5,#8A77E8)}
+.toast{position:fixed;left:50%;bottom:84px;transform:translate(-50%,20px);background:var(--ink);color:#fff;padding:.65rem 1.1rem;border-radius:999px;font-size:.9rem;opacity:0;transition:.3s;z-index:70;pointer-events:none;max-width:90vw;text-align:center}
+.toast.show{opacity:1;transform:translate(-50%,0)}
+.cf{position:fixed;top:-14px;width:8px;height:12px;border-radius:2px;z-index:60;pointer-events:none;animation:fall 1.9s ease-in forwards}
+@keyframes fall{to{transform:translate(var(--x),105vh) rotate(600deg);opacity:.2}}
+@keyframes flash{0%{opacity:0;transform:translateY(-10px) scale(.94)}55%{opacity:1;transform:translateY(0) scale(1.02);background:#E6EEFF}100%{transform:none}}
